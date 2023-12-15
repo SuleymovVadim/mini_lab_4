@@ -6,6 +6,9 @@ import { Ionicons, SimpleLineIcons } from '@expo/vector-icons'
 import { auth, db } from '../firebase';
 import { collection, onSnapshot, where, query } from 'firebase/firestore';
 
+
+const [search, setSearch] = useState('');
+const [filteredChats, setFilteredChats] = useState(chats);
 const HomeScreen = ({navigation}) => {
     // Отслеживаем и обрабатываем изменения списка чатов
     const [chats, setChats] = useState([]);
@@ -16,8 +19,14 @@ const HomeScreen = ({navigation}) => {
             navigation.replace("Login");
         });
     };
-    // 
+
+
     useEffect(() => {
+        if (search === '') {
+            setFilteredChats(chats);
+        } else {
+            setFilteredChats(chats.filter(chat => chat.data.chatName.toLowerCase().includes(search.toLowerCase())));
+        }
         const q = query(collection(db, "chats"), where("chatName", '!=', ""));
         const unsubscribe = onSnapshot(q, (querySnaphots) => {
             const chats = [];
@@ -31,7 +40,7 @@ const HomeScreen = ({navigation}) => {
             setChats(chats);
         });
         return unsubscribe;
-    }, [])
+    }, [search, chats]);
 
     // Перед отрисовкой UI настраиваем содержимое верхней плашки
     useLayoutEffect(() => {
@@ -42,7 +51,10 @@ const HomeScreen = ({navigation}) => {
             // Задаем разметку частей слева и справа от заголовка
             headerLeft: () => (
                 <View style={{ marginLeft: 20 }}>
-                    <TouchableOpacity activeOpacity={0.5} onPress={()=>alert("Navigate to UserProfileScreen")}>
+                    <TouchableOpacity activeOpacity={0.5} onPress={() => navigation.navigate("Chat", {
+                        id: auth?.currentUser?.uid,
+                        chatName: "My Profile"
+                    })}>
                         <Avatar rounded source={{ uri: auth?.currentUser?.photoURL }}/>
                     </TouchableOpacity>
                 </View>
@@ -57,32 +69,55 @@ const HomeScreen = ({navigation}) => {
                     <TouchableOpacity onPress={() => navigation.navigate("AddChat")} activeOpacity={0.5}>
                         <SimpleLineIcons name='pencil' size={24} color="black"/>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={()=>alert("Navigate to SearchScreen")} activeOpacity={0.5}>
+                    <TouchableOpacity onPress={() => navigation.navigate("Home", { mode: 'search' })} activeOpacity={0.5}>
                         <Ionicons name='search' size={24} color="black"/>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={signOut} activeOpacity={0.5}>
                         <Ionicons name='exit' size={24} color="black"/>
-                    </TouchableOpacity> 
+                    </TouchableOpacity>
                 </View>
             )
         })
     }, [navigation])
 
-    // Переходим на экран чата; при этом передаем id и name выбранного чата, 
+    if(navigation.getState().routes[navigation.getState().index].params?.mode === 'search') {
+        // Это режим поиска в HomeScreen
+        return (
+            <SafeAreaView style={{ flex: 1 }}>
+                <View style={styles.container}>
+                    <Input
+                        placeholder="Search chats..."
+                        value={search}
+                        onChangeText={text => setSearch(text)}
+                    />
+                    <ScrollView>
+                        {filteredChats.map( ({id, data: { chatName }}) => (
+                            <ChatListItem key={id} id={id} chatName={chatName} enterChat={enterChat}/>
+                        ))}
+                    </ScrollView>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // Переходим на экран чата; при этом передаем id и name выбранного чата,
     // чтобы на экране чата отобразить нужное содержимое
     const enterChat = (id, chatName) => {
         navigation.navigate("Chat", {id, chatName,})
     }
-  return (
-    <SafeAreaView>
-        <ScrollView style={styles.container}>
-            {chats.map( ({id, data: { chatName }}) => (
-                <ChatListItem key={id} id={id} chatName={chatName} enterChat={enterChat}/>
-            ))}   
-        </ScrollView>
-    </SafeAreaView>
-  )
+    return (
+
+        <SafeAreaView>
+            <ScrollView style={styles.container}>
+                {/* Отображение списка чатов */}
+                {chats.map(({ id, data: { chatName } }) => (
+                    <ChatListItem key={id} id={id} chatName={chatName} enterChat={enterChat} />
+                ))}
+            </ScrollView>
+        </SafeAreaView>
+    );
 };
+
 
 export default HomeScreen
 
