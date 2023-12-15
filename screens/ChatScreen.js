@@ -7,11 +7,31 @@ import { StatusBar } from 'expo-status-bar';
 import { addDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
+
+
 const ChatScreen = ( { navigation, route }) => {
+    if(route.params.id === auth.currentUser.uid) {
+        // Это экран профиля пользователя
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Avatar source={{uri: auth.currentUser.photoURL}} size="xlarge" />
+                <Text style={{ marginTop: 10, fontSize: 20 }}>
+                    {auth.currentUser.displayName}
+                </Text>
+                <Text>{auth.currentUser.email}</Text>
+            </View>
+        );
+    }
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
 
-  useLayoutEffect(() => {
+
+    useLayoutEffect(() => {
+        if(route.params.id === auth.currentUser.uid) {
+            navigation.setOptions({
+                title: "My Profile"
+            });
+        }
     navigation.setOptions({
        title: "Chat",
        headerTitleAlign: "left",
@@ -91,25 +111,20 @@ const ChatScreen = ( { navigation, route }) => {
         keyboardVerticalOffset={90}
       >
         <ScrollView contentContainerStyle={{paddingTop: 15}}>
-          {messages.map(({id, data}) => (
-             data.email === auth.currentUser.email ? (
-                <View key={id} style={styles.userMessage}>
-                  <Avatar 
-                  rounded 
-                  source={{uri: data.photoUrl}}
-                  // WEB
-                  containerStyle={{
-                    position: "absolute",
-                    bottom: -15,
-                    right: -5,
-                  }}
-                  position="absolute"
-                  bottom={-15}
-                  right={-5}
-                  size={30}/>
-                  <Text style={styles.userText}>{data.message}</Text>
-                </View>
-             ) : (
+            {messages.map(({id, data}) => (
+                // Проверяем, принадлежит ли сообщение текущему пользователю
+                data.email === auth.currentUser.email ? (
+                    <View key={id} style={styles.userMessage}>
+                        <TouchableOpacity onLongPress={() => deleteMessage(id)}>
+                            <Avatar
+                                rounded
+                                source={{ uri: data.photoUrl }}
+                                // ...
+                            />
+                            <Text style={styles.userText}>{data.message}</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
                 <View key={id} style={styles.senderMessage}>
                   <Text style={styles.senderText}>{data.message}</Text>
                   <Text style={styles.senderName}>{data.displayName}</Text>
@@ -141,6 +156,13 @@ const ChatScreen = ( { navigation, route }) => {
   );
 };
 
+const deleteMessage = async (id) => {
+    const messageRef = collection(db, "chats", route.params.id, "messages").doc(id);
+    const messageDoc = await messageRef.get();
+    if (messageDoc.exists && messageDoc.data().email === auth.currentUser.email) {
+        messageRef.delete().catch(error => console.error("Error removing message: ", error));
+    }
+}
 export default ChatScreen;
 
 const styles = StyleSheet.create({
